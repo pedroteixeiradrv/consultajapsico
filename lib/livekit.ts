@@ -10,13 +10,12 @@ export type LiveKitTokenInput = {
 };
 
 export async function createRoomToken(
-  _input: LiveKitTokenInput
+  input: LiveKitTokenInput
 ): Promise<{ token: string; roomName: string; url: string }> {
-  // TODO: LiveKit com LIVEKIT_API_KEY / LIVEKIT_API_SECRET / LIVEKIT_URL
-  console.info("[livekit stub] createRoomToken", _input);
+  console.info("[livekit stub] createRoomToken", input);
   return {
     token: "stub-token",
-    roomName: `consultaja-${_input.requestId}`,
+    roomName: `consultaja-${input.requestId}`,
     url: process.env.NEXT_PUBLIC_LIVEKIT_URL ?? "wss://stub.livekit.local",
   };
 }

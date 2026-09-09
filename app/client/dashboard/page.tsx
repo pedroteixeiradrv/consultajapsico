@@ -1,35 +1,53 @@
-import Link from "next/link";
-import { Shell, Card, Btn, StubNote } from "@/components/ui";
+export const dynamic = 'force-dynamic';
 
-export default function ClientDashboardPage() {
+import { redirect } from "next/navigation";
+import { Shell } from "@/components/ui";
+import { LogoutButton } from "@/components/logout-button";
+import { ClientDashboardClient } from "@/components/client-dashboard";
+import { getSession } from "@/lib/auth";
+import { readStore } from "@/lib/store";
+
+export default async function ClientDashboardPage({
+  searchParams,
+}: {
+  searchParams: { pay?: string };
+}) {
+  const session = await getSession();
+  if (!session || session.role !== "client") redirect("/client/login");
+
+  const db = await readStore();
+  const client = db.clients.find((c) => c.id === session.sub);
+  if (!client) redirect("/client/login");
+
+  const payId = searchParams.pay;
+  const payReq = payId
+    ? db.consultation_requests.find(
+        (r) => r.id === payId && r.client_id === client.id && !r.paid_at
+      )
+    : undefined;
+
+  const recent = db.consultation_requests
+    .filter((r) => r.client_id === client.id)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 8)
+    .map((r) => ({
+      id: r.id,
+      status: r.status,
+      paid: Boolean(r.paid_at),
+    }));
+
   return (
-    <Shell title="Minha conta" backHref="/">
-      <Card className="mb-4">
-        <h2 className="mb-1 font-semibold">Créditos</h2>
-        <p className="text-3xl font-bold text-teal-700">R$ 0,00</p>
-        <p className="mt-2 text-sm text-slate-600">
-          Cada sessão de 30 min custa R$50 (débito de créditos).
-        </p>
-        <div className="mt-4">
-          <Btn>Comprar créditos (LivePix stub)</Btn>
-        </div>
-      </Card>
-      <Card>
-        <h2 className="mb-3 font-semibold">Iniciar consulta</h2>
-        <p className="mb-3 text-sm text-slate-600">
-          Solicite e aguarde um psicólogo online aceitar a fila.
-        </p>
-        <Btn>Pedir consulta (stub)</Btn>
-        <p className="mt-4 text-sm text-slate-500">
-          Problemas?{" "}
-          <Link href="/sac" className="text-teal-700 underline">
-            Abrir SAC
-          </Link>
-        </p>
-        <StubNote>
-          Stub de saldo. Payout ao psicólogo só após completed — não no pedido.
-        </StubNote>
-      </Card>
+    <Shell
+      title={`Olá, ${client.full_name}`}
+      backHref="/"
+      right={<LogoutButton />}
+    >
+      <ClientDashboardClient
+        creditsCents={client.credits_cents}
+        payRequestId={payReq?.id}
+        payAmountCents={payReq?.price_cents}
+        recent={recent}
+      />
     </Shell>
   );
 }

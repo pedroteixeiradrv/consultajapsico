@@ -1,14 +1,27 @@
-import { Shell, Card, Field, Btn, StubNote } from "@/components/ui";
+export const dynamic = 'force-dynamic';
 
-export default function AdminSetupPage() {
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Shell, Card } from "@/components/ui";
+import { ActionForm } from "@/components/action-form";
+import { Field } from "@/components/ui";
+import { adminSetupAction } from "@/lib/actions/admin";
+import { readStore } from "@/lib/store";
+
+export default async function AdminSetupPage() {
+  const db = await readStore();
+  if (db.admins.length > 0) {
+    redirect("/admin/login");
+  }
+
   return (
     <Shell title="Criar administrador" backHref="/">
       <Card>
         <p className="mb-4 text-sm text-slate-600">
           O primeiro acesso cria o usuário admin e a senha. Um segundo cadastro
-          de admin deve retornar erro.
+          de admin retorna erro.
         </p>
-        <form className="max-w-md">
+        <ActionForm action={adminSetupAction} submitLabel="Criar admin">
           <Field label="E-mail" name="email" type="email" required />
           <Field label="Senha" name="password" type="password" required />
           <Field
@@ -17,12 +30,13 @@ export default function AdminSetupPage() {
             type="password"
             required
           />
-          <Btn type="submit">Criar admin</Btn>
-        </form>
-        <StubNote>
-          Stub: persistência em Supabase + hash de senha na próxima fase. A
-          constraint SQL e a app garantem no máximo 1 admin.
-        </StubNote>
+        </ActionForm>
+        <p className="mt-4 text-sm text-slate-500">
+          Já tem admin?{" "}
+          <Link href="/admin/login" className="text-teal-700 underline">
+            Entrar
+          </Link>
+        </p>
       </Card>
     </Shell>
   );

@@ -1,13 +1,12 @@
 /**
  * LivePix stub — pagamentos (mensalidade psicólogo, sessão, créditos).
- * Sem chaves reais nesta fase. Integrar LivePix depois.
+ * Demo: use POST /api/payments/stub-confirm para simular webhook.
  */
 
 export type LivePixCheckoutInput = {
   amountCents: number;
   description: string;
   externalId: string;
-  /** URL de retorno após pagamento */
   returnUrl?: string;
 };
 
@@ -19,14 +18,13 @@ export type LivePixCheckoutResult = {
 };
 
 export async function createCheckout(
-  _input: LivePixCheckoutInput
+  input: LivePixCheckoutInput
 ): Promise<LivePixCheckoutResult> {
-  // TODO: chamar API LivePix com LIVEPIX_API_KEY
-  console.info("[livepix stub] createCheckout", _input);
+  console.info("[livepix stub] createCheckout", input);
   return {
     ok: true,
-    checkoutUrl: "/stub/livepix-checkout",
-    providerRef: `stub_${Date.now()}`,
+    checkoutUrl: `/client/dashboard?pay=${encodeURIComponent(input.externalId)}`,
+    providerRef: `stub_${input.externalId}_${Date.now()}`,
   };
 }
 
@@ -36,3 +34,10 @@ export async function verifyPayment(
   console.info("[livepix stub] verifyPayment", _providerRef);
   return { paid: false };
 }
+
+/** Simula confirmação de webhook LivePix (demo local). */
+export type StubConfirmInput = {
+  requestId: string;
+  kind?: "consultation" | "subscription";
+  psychologistId?: string;
+};

@@ -105,6 +105,7 @@ create table if not exists consultation_requests (
   -- Reembolso: NÃO automático; somente via SAC com comprovante
   refund_requested boolean not null default false,
   refunded_at timestamptz,
+  payout_credited boolean not null default false,        -- crédito ao psicólogo já aplicado
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -166,6 +167,21 @@ create table if not exists payouts (
   created_at timestamptz not null default now(),
   paid_at timestamptz
 );
+
+
+-- ---------------------------------------------------------------------------
+-- email_log — stub / audit de e-mails enviados (EmailLogEntry)
+-- ---------------------------------------------------------------------------
+create table if not exists email_log (
+  id uuid primary key default gen_random_uuid(),
+  to_email text not null,                                -- EmailLogEntry.to
+  subject text not null,
+  reason text not null,                                  -- e.g. new_request_blast | generic
+  created_at timestamptz not null default now()
+);
+
+create index if not exists email_log_created_idx
+  on email_log (created_at desc);
 
 -- ---------------------------------------------------------------------------
 -- Notas de produto (comentários SQL)

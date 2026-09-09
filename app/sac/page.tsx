@@ -1,15 +1,30 @@
-import { Shell, Card, Field, Btn, StubNote } from "@/components/ui";
+export const dynamic = 'force-dynamic';
 
-export default function SacPage() {
+import { Shell, Card, Field, SuccessBox } from "@/components/ui";
+import { ActionForm } from "@/components/action-form";
+import { submitSacAction } from "@/lib/actions/sac";
+
+export default function SacPage({
+  searchParams,
+}: {
+  searchParams: { sent?: string };
+}) {
   return (
     <Shell title="SAC — suporte" backHref="/">
       <Card>
+        <SuccessBox
+          message={
+            searchParams.sent
+              ? "Ticket enviado. Somente a equipe admin lê."
+              : null
+          }
+        />
         <p className="mb-4 text-sm text-slate-600">
           Formulário geral de solicitação. Somente a equipe admin lê os
           tickets. Use este canal para dúvidas, suporte ou reembolso com
           comprovante (não há reembolso automático).
         </p>
-        <form className="max-w-md">
+        <ActionForm action={submitSacAction} submitLabel="Enviar">
           <Field label="E-mail (opcional)" name="email" type="email" />
           <Field label="Assunto" name="subject" required />
           <label className="mb-4 block">
@@ -28,11 +43,7 @@ export default function SacPage() {
             name="proofNote"
             placeholder="ID do pagamento, print, etc."
           />
-          <Btn type="submit">Enviar</Btn>
-        </form>
-        <StubNote>
-          Grava em sac_tickets. Listagem apenas em /admin/sac.
-        </StubNote>
+        </ActionForm>
       </Card>
     </Shell>
   );

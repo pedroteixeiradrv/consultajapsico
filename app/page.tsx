@@ -27,8 +27,9 @@ export default function HomePage() {
             Converse com um psicólogo online em minutos
           </h1>
           <p className="mb-8 text-lg text-slate-600">
-            Sessões de 30 minutos com conta identificada e créditos. Psicólogos
-            ficam online e aceitam a fila em tempo real.
+            Sessões de 30 minutos com conta identificada. Psicólogos ficam
+            online e aceitam a fila em tempo real. Demo local sem serviços
+            externos.
           </p>
 
           <div className="flex flex-wrap gap-3">
@@ -51,22 +52,23 @@ export default function HomePage() {
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-2 font-semibold text-slate-900">Clientes</h2>
             <p className="text-sm text-slate-600">
-              Conta identificada + créditos. R$50 / 30 min → R$40 para o
-              psicólogo após a sessão.
+              Conta identificada. R$50 / 30 min → R$40 para o psicólogo após a
+              sessão. Sem fluxo anônimo.
             </p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-2 font-semibold text-slate-900">Psicólogos</h2>
             <p className="text-sm text-slate-600">
-              Cadastro, mensalidade e status online. Aceitam a fila pendente —
-              não é só e-mail. Pix só após sessão concluída.
+              Cadastro, status online e aceite da fila. Mensalidade libera
+              e-mail; online sem mensalidade ainda pode Aceitar. Pix só após
+              sessão concluída.
             </p>
           </div>
         </section>
 
         <p className="mt-10 text-xs text-slate-400">
-          Vertical de advogados: fora do escopo por enquanto (futuro). Nome
-          
+          Vertical de advogados: fora do escopo por enquanto (futuro). Nome do
+          produto: ConsultaJáPsico.
         </p>
       </main>
     </div>

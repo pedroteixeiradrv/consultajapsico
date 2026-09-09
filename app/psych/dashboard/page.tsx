@@ -1,76 +1,41 @@
-"use client";
+export const dynamic = 'force-dynamic';
 
-import { useState } from "react";
-import { Shell, Card, StubNote } from "@/components/ui";
+import { redirect } from "next/navigation";
+import { Shell } from "@/components/ui";
+import { LogoutButton } from "@/components/logout-button";
+import { PsychDashboardClient } from "@/components/psych-dashboard";
+import { getSession } from "@/lib/auth";
+import { readStore } from "@/lib/store";
 
-const PENDING = [
-  { id: "req-stub-1", kind: "identified", since: "agora" },
-  { id: "req-stub-2", kind: "identified", since: "2 min" },
-];
+export default async function PsychDashboardPage() {
+  const session = await getSession();
+  if (!session || session.role !== "psych") redirect("/psych/login");
 
-export default function PsychDashboardPage() {
-  const [online, setOnline] = useState(false);
+  const db = await readStore();
+  const psych = db.psychologists.find((p) => p.id === session.sub);
+  if (!psych) redirect("/psych/login");
+
+  const queue = db.consultation_requests
+    .filter((r) => r.status === "pending" && r.paid_at && !r.psychologist_id)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map((r) => ({
+      id: r.id,
+      created_at: r.created_at,
+      price_cents: r.price_cents,
+    }));
 
   return (
-    <Shell title="Painel do psicólogo" backHref="/">
-      <Card className="mb-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold">Status online</h2>
-            <p className="text-sm text-slate-600">
-              Você precisa estar online e aceitar a fila pendente.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setOnline((v) => !v)}
-            className={`inline-flex min-w-[140px] items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-white ${
-              online
-                ? "bg-rose-600 hover:bg-rose-700"
-                : "bg-teal-600 hover:bg-teal-700"
-            }`}
-          >
-            {online ? "Ficar offline" : "Ficar online"}
-          </button>
-        </div>
-        <p className="mt-3 text-sm">
-          Agora:{" "}
-          <span
-            className={
-              online ? "font-semibold text-teal-700" : "text-slate-500"
-            }
-          >
-            {online ? "ONLINE" : "offline"}
-          </span>
-        </p>
-      </Card>
-
-      <Card>
-        <h2 className="mb-3 font-semibold">Fila pendente</h2>
-        <ul className="divide-y divide-slate-100">
-          {PENDING.map((r) => (
-            <li
-              key={r.id}
-              className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
-            >
-              <span>
-                Pedido <code>{r.id}</code> · {r.kind} · {r.since}
-              </span>
-              <button
-                type="button"
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
-              >
-                Aceitar
-              </button>
-            </li>
-          ))}
-        </ul>
-        <StubNote>
-          Stub de fila (somente clientes identificados). Aceitar → status
-          accepted → sala LiveKit. Payout Pix só depois de completed / timer 30
-          min (lib/payout.ts).
-        </StubNote>
-      </Card>
+    <Shell
+      title={`Painel — ${psych.full_name}`}
+      backHref="/"
+      right={<LogoutButton />}
+    >
+      <PsychDashboardClient
+        initialOnline={psych.online}
+        subscriptionStatus={psych.subscription_status}
+        payoutBalanceCents={psych.payout_balance_cents}
+        queue={queue}
+      />
     </Shell>
   );
 }
