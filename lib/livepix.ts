@@ -14,12 +14,9 @@ export function getLivePixEnv() {
 export function isLivePixConfigured(): boolean {
   const e = getLivePixEnv(); return Boolean(e.clientId && e.clientSecret);
 }
-
 export async function createCheckout(input: LivePixCheckoutInput): Promise<LivePixCheckoutResult> {
   if (!isStubPaymentsAllowed() && !isLivePixConfigured()) return { ok: false, error: "LivePix não configurado." };
   const path = input.returnUrl || "/client/dashboard";
   const sep = path.includes("?") ? "&" : "?";
   return { ok: true, checkoutUrl: `${path}${sep}pay=${encodeURIComponent(input.externalId)}`, providerRef: `stub_${input.externalId}_${Date.now()}`, mode: "stub" };
 }
-export async function verifyPayment(_providerRef: string): Promise<{ paid: boolean; raw?: unknown }> { return { paid: false }; }
-export type StubConfirmInput = { requestId: string; kind?: "consultation" | "subscription"; psychologistId?: string };
