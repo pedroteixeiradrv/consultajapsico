@@ -50,9 +50,13 @@ export function CallRoom({
   const secs = Math.floor((remaining % 60000) / 1000);
 
   if (status === "completed") {
+    const doneMsg =
+      role === "client"
+        ? "Sessão encerrada. Obrigado por usar o ConsultaJáPsico."
+        : "Sessão encerrada. Repasse creditado ao psicólogo (se aplicável).";
     return (
       <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900">
-        Sessão encerrada. Payout de R$40 creditado ao psicólogo (se aplicável).
+        {doneMsg}
       </div>
     );
   }
