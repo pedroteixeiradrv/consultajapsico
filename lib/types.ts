@@ -22,6 +22,23 @@ export type SacStatus = "open" | "in_progress" | "resolved" | "closed";
 
 export type PayoutStatus = "pending" | "processing" | "paid" | "failed";
 
+export type VerificationStatus = "pending" | "approved" | "rejected";
+
+/**
+ * Payout release state (no auto LivePix transfer):
+ * - pending_client: session ended; waiting client confirm
+ * - eligible: client confirmed → next admin batch (dias 10/28)
+ * - needs_admin_review: no confirm and/or SAC opened → HOLD
+ * - released: admin released into owed/batch
+ * - denied: admin denied payout
+ */
+export type PayoutReleaseStatus =
+  | "pending_client"
+  | "eligible"
+  | "needs_admin_review"
+  | "released"
+  | "denied";
+
 /** Preços default (espelham platform_settings) — apenas identificados */
 export const DEFAULT_PRICES = {
   monthlyFeeCents: 9900,
@@ -43,8 +60,13 @@ export type Psychologist = {
   password_hash: string;
   full_name: string;
   crp: string | null;
+  /** WhatsApp E.164 ou BR — obrigatório no cadastro */
+  whatsapp: string | null;
   pix_key: string | null;
   subscription_status: SubscriptionStatus;
+  /** ISO — mensalidade libera alertas de e-mail por 30 dias */
+  subscription_expires_at: string | null;
+  verification_status: VerificationStatus;
   online: boolean;
   payout_balance_cents: number;
   created_at: string;
@@ -77,6 +99,20 @@ export type ConsultationRequest = {
   refund_requested: boolean;
   refunded_at: string | null;
   payout_credited: boolean;
+  /** Client must confirm attendance before payout eligibility */
+  attendance_confirmed_by_client: boolean;
+  attendance_confirmed_at: string | null;
+  /** Client → psych (optional 1–5) */
+  client_rating_of_psych: number | null;
+  client_rating_comment: string | null;
+  /** Psych → client (optional 1–5) after session ends */
+  psych_rating_of_client: number | null;
+  psych_rating_comment: string | null;
+  payout_release_status: PayoutReleaseStatus;
+  /** SAC opened for this consultation at/after end → HOLD */
+  sac_linked_at: string | null;
+  payout_withheld: boolean;
+  payout_withheld_reason: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -121,6 +157,18 @@ export type Payout = {
   pix_key: string;
   status: PayoutStatus;
   provider_ref: string | null;
+  payout_batch_id: string | null;
+  created_at: string;
+  paid_at: string | null;
+};
+
+/** Lotes manuais admin (dias 10 e 28) — sem transferência automática LivePix */
+export type PayoutBatch = {
+  id: string;
+  label: string;
+  status: "open" | "paid";
+  total_cents: number;
+  notes: string | null;
   created_at: string;
   paid_at: string | null;
 };
