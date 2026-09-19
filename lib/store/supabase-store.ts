@@ -115,7 +115,7 @@ async function loadDb(client: SupabaseClient): Promise<Database> {
     selectAll<CreditsLedgerEntry>(client, "credits_ledger"),
     selectAll<SacTicket>(client, "sac_tickets"),
     selectAll<PlatformSettings>(client, "platform_settings"),
-    selectAll<Payout>(client, "payouts"),
+    selectAll<Payout>(client, "payouts"),      selectAll<PayoutBatch>(client, "payout_batches"),
     selectAll<EmailLogRow>(client, "email_log"),
   ]);
 
