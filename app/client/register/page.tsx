@@ -10,8 +10,8 @@ export default function ClientRegisterPage() {
     <Shell title="Criar conta (cliente identificado)" backHref="/">
       <Card>
         <p className="mb-4 text-sm text-slate-600">
-          Conta identificada. Sessão: R$50 / 30 min → R$40 ao psicólogo após
-          concluir. Sem fluxo anônimo.
+          Conta identificada. Sessão de meia hora por R$50. Sem fluxo
+          anônimo.
         </p>
         <ActionForm action={clientRegisterAction} submitLabel="Criar conta">
           <Field label="Nome" name="fullName" required />
