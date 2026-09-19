@@ -40,26 +40,19 @@ export async function markConsultationPaid(
   return result;
 }
 
-type CompletePrep =
-  | { ok: false; error: string }
-  | { ok: true; already: true }
-  | {
-      ok: true;
-      already: false;
-      psychologistId: string;
-      amountCents: number;
-      pixKey: string;
-    };
-
+/**
+ * Encerrar sessão (psych / timer / admin).
+ * NÃO credita payout — aguarda confirmação do cliente (ou review admin).
+ */
 export async function completeConsultation(
   requestId: string,
   by: "psych" | "admin" | "timer"
 ): Promise<ActionResult> {
-  const prep: CompletePrep = await mutateStore((db) => {
+  return mutateStore((db) => {
     const req = db.consultation_requests.find((r) => r.id === requestId);
     if (!req) return { ok: false as const, error: "Pedido não encontrado" };
     if (req.status === "completed") {
-      return { ok: true as const, already: true as const };
+      return { ok: true as const };
     }
     if (req.status !== "accepted" && req.status !== "in_call") {
       return {
@@ -79,36 +72,17 @@ export async function completeConsultation(
     }
     req.status = "completed";
     req.completed_at = now;
+    req.payout_release_status = "pending_client";
     req.updated_at = now;
-    const psych = db.psychologists.find((p) => p.id === req.psychologist_id);
-    return {
-      ok: true as const,
-      already: false as const,
-      psychologistId: req.psychologist_id,
-      amountCents: req.psych_cut_cents,
-      pixKey: psych?.pix_key ?? "",
-    };
+    console.info("[session] completed without payout credit", requestId, by);
+    return { ok: true as const };
   });
-
-  if (!prep.ok) return prep;
-  if (prep.already) return { ok: true };
-
-  const payout = await enqueuePsychPayout({
-    psychologistId: prep.psychologistId,
-    consultationRequestId: requestId,
-    amountCents: prep.amountCents,
-    pixKey: prep.pixKey,
-  });
-
-  if (!payout.ok) {
-    console.error("[session] payout failed after complete", payout.error, by);
-    return { ok: false, error: payout.error ?? "Falha no payout" };
-  }
-  return { ok: true };
 }
 
 /** Marca in_call quando entra na sala. */
-export async function markInCallAction(requestId: string): Promise<ActionResult> {
+export async function markInCallAction(
+  requestId: string
+): Promise<ActionResult> {
   await mutateStore((db) => {
     const req = db.consultation_requests.find((r) => r.id === requestId);
     if (!req) return;
@@ -147,19 +121,193 @@ export async function completeSessionUiAction(
     if (req.client_id !== session.sub) {
       return { ok: false, error: "Não é o cliente desta sessão" };
     }
+    // Client ending via timer path still only completes — confirm is separate
     const started = req.call_started_at
       ? new Date(req.call_started_at).getTime()
       : req.accepted_at
         ? new Date(req.accepted_at).getTime()
         : 0;
     const elapsed = Date.now() - started;
-    if (elapsed < 30 * 60 * 1000) {
-      return {
-        ok: false,
-        error: "Cliente só pode encerrar após 30 minutos.",
-      };
+    if (elapsed < 30 * 60 * 1000 && req.status !== "completed") {
+      // allow client to open post-session UI only after complete by psych/timer
+      // but if already completed, fall through to refresh
     }
-    return completeConsultation(requestId, "timer");
+    if (req.status !== "completed") {
+      if (elapsed < 30 * 60 * 1000) {
+        return {
+          ok: false,
+          error: "Aguarde o psicólogo encerrar, ou o timer de 30 min.",
+        };
+      }
+      return completeConsultation(requestId, "timer");
+    }
+    return { ok: true };
   }
   return { ok: false, error: "Acesso negado" };
+}
+
+function clampRating(n: unknown): number | null {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return null;
+  const r = Math.round(v);
+  if (r < 1 || r > 5) return null;
+  return r;
+}
+
+/**
+ * Cliente confirma atendimento (checkbox obrigatório) + rating opcional.
+ * Só então a sessão fica eligible e o payout é enfileirado para o lote 10/28.
+ */
+export async function confirmAttendanceAction(
+  requestId: string,
+  opts: {
+    confirmed: boolean;
+    rating?: number | null;
+    comment?: string | null;
+  }
+): Promise<ActionResult> {
+  const { getSession } = await import("@/lib/auth");
+  const session = await getSession();
+  if (!session || session.role !== "client") {
+    return { ok: false, error: "Somente o cliente pode confirmar" };
+  }
+  if (!opts.confirmed) {
+    return {
+      ok: false,
+      error: 'Marque "Confirmo que o atendimento foi realizado".',
+    };
+  }
+
+  const rating = opts.rating != null ? clampRating(opts.rating) : null;
+  const comment = opts.comment?.trim() || null;
+
+  const prep = await mutateStore((db) => {
+    const req = db.consultation_requests.find((r) => r.id === requestId);
+    if (!req) return { ok: false as const, error: "Pedido não encontrado" };
+    if (req.client_id !== session.sub) {
+      return { ok: false as const, error: "Pedido não pertence a você" };
+    }
+    if (req.status !== "completed") {
+      return { ok: false as const, error: "Sessão ainda não foi encerrada" };
+    }
+    if (req.sac_linked_at || req.payout_release_status === "needs_admin_review") {
+      return {
+        ok: false as const,
+        error:
+          "Há um SAC ou revisão admin nesta sessão — o repasse fica em análise.",
+      };
+    }
+    if (req.attendance_confirmed_by_client && req.payout_credited) {
+      return { ok: true as const, already: true as const };
+    }
+    const now = nowIso();
+    req.attendance_confirmed_by_client = true;
+    req.attendance_confirmed_at = now;
+    req.client_rating_of_psych = rating;
+    req.client_rating_comment = comment;
+    req.payout_release_status = "eligible";
+    req.updated_at = now;
+    const psych = db.psychologists.find((p) => p.id === req.psychologist_id);
+    return {
+      ok: true as const,
+      already: false as const,
+      psychologistId: req.psychologist_id!,
+      amountCents: req.psych_cut_cents,
+      pixKey: psych?.pix_key ?? "",
+    };
+  });
+
+  if (!prep.ok) return prep;
+  if ("already" in prep && prep.already) return { ok: true };
+
+  const payout = await enqueuePsychPayout({
+    psychologistId: (prep as { psychologistId: string }).psychologistId,
+    consultationRequestId: requestId,
+    amountCents: (prep as { amountCents: number }).amountCents,
+    pixKey: (prep as { pixKey: string }).pixKey,
+  });
+  if (!payout.ok) {
+    return { ok: false, error: payout.error ?? "Falha ao enfileirar payout" };
+  }
+  return { ok: true };
+}
+
+/** Psicólogo avalia o cliente (opcional) após sessão completed. */
+export async function rateClientAction(
+  requestId: string,
+  opts: { rating?: number | null; comment?: string | null }
+): Promise<ActionResult> {
+  const { getSession } = await import("@/lib/auth");
+  const session = await getSession();
+  if (!session || session.role !== "psych") {
+    return { ok: false, error: "Somente o psicólogo pode avaliar o cliente" };
+  }
+  const rating = opts.rating != null ? clampRating(opts.rating) : null;
+  const comment = opts.comment?.trim() || null;
+
+  return mutateStore((db) => {
+    const req = db.consultation_requests.find((r) => r.id === requestId);
+    if (!req) return { ok: false as const, error: "Pedido não encontrado" };
+    if (req.psychologist_id !== session.sub) {
+      return { ok: false as const, error: "Não é o psicólogo desta sessão" };
+    }
+    if (req.status !== "completed") {
+      return { ok: false as const, error: "Sessão ainda não encerrada" };
+    }
+    const now = nowIso();
+    req.psych_rating_of_client = rating;
+    req.psych_rating_comment = comment;
+    req.updated_at = now;
+    return { ok: true as const };
+  });
+}
+
+/**
+ * Abre SAC vinculado à consulta e coloca payout em HOLD / needs_admin_review.
+ */
+export async function openSessionSacAction(
+  requestId: string,
+  opts: { subject?: string; body?: string }
+): Promise<ActionResult & { ticketId?: string }> {
+  const { getSession } = await import("@/lib/auth");
+  const { newId } = await import("@/lib/store");
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Não autenticado" };
+
+  return mutateStore((db) => {
+    const req = db.consultation_requests.find((r) => r.id === requestId);
+    if (!req) return { ok: false as const, error: "Pedido não encontrado" };
+    const allowed =
+      (session.role === "client" && req.client_id === session.sub) ||
+      (session.role === "psych" && req.psychologist_id === session.sub) ||
+      session.role === "admin";
+    if (!allowed) return { ok: false as const, error: "Acesso negado" };
+
+    const now = nowIso();
+    const ticketId = newId();
+    db.sac_tickets.push({
+      id: ticketId,
+      requester_email: session.email,
+      subject:
+        opts.subject?.trim() ||
+        `SAC do atendimento ${requestId.slice(0, 8)}`,
+      body:
+        opts.body?.trim() ||
+        "Solicitação de suporte / contestação aberta ao final da sessão.",
+      consultation_request_id: requestId,
+      proof_note: null,
+      status: "open",
+      admin_notes: null,
+      created_at: now,
+      updated_at: now,
+    });
+    req.sac_linked_at = now;
+    req.payout_release_status = "needs_admin_review";
+    req.payout_withheld = true;
+    req.payout_withheld_reason =
+      req.payout_withheld_reason || "SAC aberto para este atendimento";
+    // If payout was already credited somehow, leave admin to reverse manually
+    req.updated_at = now;
+    return { ok: true as const, ticketId };
+  });
 }
