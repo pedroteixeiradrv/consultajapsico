@@ -1,11 +1,11 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { Shell, Card, StubNote } from "@/components/ui";
 import { CallRoom } from "@/components/call-room";
 import { getSession } from "@/lib/auth";
 import { readStore } from "@/lib/store";
-import { createRoomToken } from "@/lib/livekit";
+import { whatsappMeUrl } from "@/lib/whatsapp";
 
 export default async function CallPage({
   params,
@@ -34,11 +34,10 @@ export default async function CallPage({
     );
   }
 
-  const token = await createRoomToken({
-    requestId,
-    identity: session.sub,
-    name: session.email,
-  });
+  const psych = req.psychologist_id
+    ? db.psychologists.find((p) => p.id === req.psychologist_id)
+    : null;
+  const wa = whatsappMeUrl(psych?.whatsapp ?? null);
 
   return (
     <Shell
@@ -58,12 +57,13 @@ export default async function CallPage({
           callStartedAt={req.call_started_at ?? req.accepted_at}
           status={req.status}
           sessionMinutes={db.platform_settings.session_duration_minutes}
+          whatsappUrl={wa}
+          psychName={psych?.full_name ?? null}
+          psychCrp={psych?.crp ?? null}
         />
-        <p className="mt-4 text-xs text-slate-400">
-          LiveKit room: {token.roomName} (token stub)
-        </p>
         <StubNote>
-          Encerrar → status completed → payout R$40 no saldo do psicólogo.
+          Repasse ao psicólogo só após o cliente confirmar o atendimento. SAC
+          nesta sessão coloca o valor em HOLD para o admin.
         </StubNote>
       </Card>
     </Shell>
