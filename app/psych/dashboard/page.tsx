@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/ui";
@@ -33,6 +33,8 @@ export default async function PsychDashboardPage() {
       <PsychDashboardClient
         initialOnline={psych.online}
         subscriptionStatus={psych.subscription_status}
+        subscriptionExpiresAt={psych.subscription_expires_at}
+        verificationStatus={psych.verification_status}
         payoutBalanceCents={psych.payout_balance_cents}
         queue={queue}
       />
