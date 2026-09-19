@@ -6,7 +6,7 @@ import { Card, formatBRL, StubNote } from "@/components/ui";
 import {
   acceptRequestAction,
   toggleOnlineAction,
-  activateSubscriptionStubAction,
+  startSubscriptionCheckoutAction,
 } from "@/lib/actions/psych";
 
 type QueueItem = {
@@ -18,11 +18,15 @@ type QueueItem = {
 export function PsychDashboardClient({
   initialOnline,
   subscriptionStatus,
+  subscriptionExpiresAt,
+  verificationStatus,
   payoutBalanceCents,
   queue,
 }: {
   initialOnline: boolean;
   subscriptionStatus: string;
+  subscriptionExpiresAt: string | null;
+  verificationStatus: string;
   payoutBalanceCents: number;
   queue: QueueItem[];
 }) {
@@ -37,6 +41,15 @@ export function PsychDashboardClient({
 
   return (
     <>
+      {verificationStatus !== "approved" && (
+        <Card className="mb-4 border-amber-200 bg-amber-50">
+          <p className="text-sm text-amber-900">
+            {verificationStatus === "rejected"
+              ? "Seu CRP foi rejeitado pelo admin. Você não pode aceitar filas."
+              : "Seu cadastro aguarda aprovação do CRP pelo admin. Você pode ficar online, mas não pode Aceitar pedidos até ser aprovado."}
+          </p>
+        </Card>
+      )}
       <Card className="mb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -81,7 +94,7 @@ export function PsychDashboardClient({
           </span>
           {" · "}
           Mensalidade:{" "}
-          <span className="font-medium">{subscriptionStatus}</span>
+          <span className="font-medium">{subscriptionStatus}{subscriptionExpiresAt ? ` até ${new Date(subscriptionExpiresAt).toLocaleDateString("pt-BR")}` : ""}</span>
           {" · "}
           Saldo payout:{" "}
           <span className="font-semibold text-teal-700">
@@ -95,12 +108,16 @@ export function PsychDashboardClient({
             disabled={pending}
             onClick={() =>
               start(async () => {
-                await activateSubscriptionStubAction();
+                const r = await startSubscriptionCheckoutAction();
+                if (r && typeof r === "object" && "checkoutUrl" in r && r.checkoutUrl) {
+                  window.location.href = String(r.checkoutUrl);
+                  return;
+                }
                 refresh();
               })
             }
           >
-            (demo) Ativar mensalidade stub → passa a receber e-mail da fila
+            Assinar 30 dias (alertas por e-mail) — LivePix
           </button>
         )}
       </Card>
