@@ -20,6 +20,12 @@ export default function PsychRegisterPage() {
           <Field label="Senha" name="password" type="password" required />
           <Field label="CRP" name="crp" placeholder="CRP/XX 00000" required />
           <Field
+            label="WhatsApp"
+            name="whatsapp"
+            placeholder="11999999999 ou +5511999999999"
+            required
+          />
+          <Field
             label="Chave Pix"
             name="pixKey"
             placeholder="para payout após sessão"
