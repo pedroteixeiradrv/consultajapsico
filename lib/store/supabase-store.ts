@@ -251,7 +251,7 @@ export async function mutateStore<T>(
       credits_ledger: [...before.credits_ledger],
       sac_tickets: [...before.sac_tickets],
       platform_settings: { ...before.platform_settings },
-      payouts: [...before.payouts],
+      payouts: [...before.payouts],      payout_batches: [...(before.payout_batches ?? [])],
       email_log: [...before.email_log],
     };
     const result = mutator(db);
