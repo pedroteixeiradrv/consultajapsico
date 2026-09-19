@@ -79,3 +79,89 @@ export async function adminCompleteSessionAction(requestId: string) {
   const { completeConsultation } = await import("@/lib/actions/session");
   return completeConsultation(requestId, "admin");
 }
+
+
+/** Approve / reject psychologist CRP verification */
+export async function setPsychVerificationAction(
+  psychId: string,
+  status: "approved" | "rejected"
+): Promise<ActionResult> {
+  await requireSession("admin");
+  await mutateStore((db) => {
+    const p = db.psychologists.find((x) => x.id === psychId);
+    if (!p) throw new Error("Psicólogo não encontrado");
+    p.verification_status = status;
+    p.updated_at = nowIso();
+  });
+  return { ok: true };
+}
+
+/** Admin releases HOLD session into eligible + enqueues payout */
+export async function releasePayoutAction(
+  requestId: string
+): Promise<ActionResult> {
+  await requireSession("admin");
+  const { enqueuePsychPayout } = await import("@/lib/payout");
+
+  const prep = await mutateStore((db) => {
+    const req = db.consultation_requests.find((r) => r.id === requestId);
+    if (!req) return { ok: false as const, error: "Pedido não encontrado" };
+    if (req.status !== "completed") {
+      return { ok: false as const, error: "Sessão não completed" };
+    }
+    if (req.payout_credited) {
+      return { ok: false as const, error: "Payout já creditado" };
+    }
+    const now = nowIso();
+    req.payout_release_status = "released";
+    req.payout_withheld = false;
+    req.attendance_confirmed_by_client = true;
+    req.attendance_confirmed_at = req.attendance_confirmed_at ?? now;
+    req.updated_at = now;
+    const psych = db.psychologists.find((p) => p.id === req.psychologist_id);
+    return {
+      ok: true as const,
+      psychologistId: req.psychologist_id!,
+      amountCents: req.psych_cut_cents,
+      pixKey: psych?.pix_key ?? "",
+    };
+  });
+  if (!prep.ok) return prep;
+  const payout = await enqueuePsychPayout({
+    psychologistId: prep.psychologistId,
+    consultationRequestId: requestId,
+    amountCents: prep.amountCents,
+    pixKey: prep.pixKey,
+  });
+  if (!payout.ok) return { ok: false, error: payout.error ?? "Falha payout" };
+  return { ok: true };
+}
+
+/** Admin denies payout (investigação) */
+export async function denyPayoutAction(
+  requestId: string,
+  reason?: string
+): Promise<ActionResult> {
+  await requireSession("admin");
+  await mutateStore((db) => {
+    const req = db.consultation_requests.find((r) => r.id === requestId);
+    if (!req) throw new Error("not found");
+    req.payout_release_status = "denied";
+    req.payout_withheld = true;
+    req.payout_withheld_reason = reason?.trim() || "Negado pelo admin";
+    req.updated_at = nowIso();
+  });
+  return { ok: true };
+}
+
+export async function markPayoutBatchPaidAction(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireSession("admin");
+  const { markPayoutBatchPaid } = await import("@/lib/payout");
+  const label = String(formData.get("label") ?? "").trim() || undefined;
+  const notes = String(formData.get("notes") ?? "").trim() || undefined;
+  const result = await markPayoutBatchPaid({ label, notes });
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true };
+}
