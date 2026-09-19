@@ -10,7 +10,7 @@ import {
   CreditsLedgerEntry,
   DEFAULT_PRICES,
   EmailLogEntry,
-  Payout,
+  Payout,  PayoutBatch,
   PlatformSettings,
   Psychologist,
   SacTicket,
@@ -105,7 +105,7 @@ async function loadDb(client: SupabaseClient): Promise<Database> {
     credits_ledger,
     sac_tickets,
     settingsRows,
-    payouts,
+    payouts, payout_batches,
     emailRows,
   ] = await Promise.all([
     selectAll<Admin>(client, "admins"),
@@ -127,7 +127,7 @@ async function loadDb(client: SupabaseClient): Promise<Database> {
     credits_ledger,
     sac_tickets,
     platform_settings: settingsRows[0] ?? emptySettings(),
-    payouts,
+    payouts, payout_batches,
     email_log: emailRows.map(emailFromRow),
   };
 }
