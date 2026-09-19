@@ -15,11 +15,11 @@ export async function psychRegisterAction(
     .trim()
     .toLowerCase();
   const password = String(formData.get("password") ?? "");
-  const crp = String(formData.get("crp") ?? "").trim() || null;
+  const crp = String(formData.get("crp") ?? "").trim();
   const pix_key = String(formData.get("pixKey") ?? "").trim() || null;
 
-  if (!full_name || !email || !password) {
-    return { ok: false, error: "Preencha nome, e-mail e senha." };
+  if (!full_name || !email || !password || !crp) {
+    return { ok: false, error: "Preencha nome, e-mail, senha e CRP." };
   }
   if (password.length < 6) {
     return { ok: false, error: "Senha deve ter ao menos 6 caracteres." };
