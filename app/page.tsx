@@ -28,8 +28,7 @@ export default function HomePage() {
           </h1>
           <p className="mb-8 text-lg text-slate-600">
             Sessões de 30 minutos com conta identificada. Psicólogos ficam
-            online e aceitam a fila em tempo real. Demo local sem serviços
-            externos.
+            online e aceitam a fila em tempo real.
           </p>
 
           <div className="flex flex-wrap gap-3">
@@ -52,8 +51,8 @@ export default function HomePage() {
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-2 font-semibold text-slate-900">Clientes</h2>
             <p className="text-sm text-slate-600">
-              Conta identificada. R$50 / 30 min → R$40 para o psicólogo após a
-              sessão. Sem fluxo anônimo.
+              Conta identificada. Sessão de meia hora por R$50. Sem fluxo
+              anônimo.
             </p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -67,8 +66,7 @@ export default function HomePage() {
         </section>
 
         <p className="mt-10 text-xs text-slate-400">
-          Vertical de advogados: fora do escopo por enquanto (futuro). Nome do
-          produto: ConsultaJáPsico.
+          ConsultaJáPsico
         </p>
       </main>
     </div>
