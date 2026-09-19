@@ -18,7 +18,7 @@ export default function PsychRegisterPage() {
           <Field label="Nome completo" name="fullName" required />
           <Field label="E-mail" name="email" type="email" required />
           <Field label="Senha" name="password" type="password" required />
-          <Field label="CRP (opcional)" name="crp" placeholder="CRP/XX 00000" />
+          <Field label="CRP" name="crp" placeholder="CRP/XX 00000" required />
           <Field
             label="Chave Pix"
             name="pixKey"
