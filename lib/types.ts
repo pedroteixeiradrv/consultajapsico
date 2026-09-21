@@ -96,6 +96,8 @@ export type ConsultationRequest = {
   completed_at: string | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
+  /** Paid amount vs expected when LivePix amount mismatched (cents received). */
+  payment_mismatch_cents: number | null;
   refund_requested: boolean;
   refunded_at: string | null;
   payout_credited: boolean;
@@ -145,6 +147,8 @@ export type PlatformSettings = {
   price_id_cents: number;
   psych_cut_id_cents: number;
   session_duration_minutes: number;
+  /** Keyword for free 30-day subscription; null/empty = disabled */
+  subscription_coupon_code: string | null;
   created_at: string;
   updated_at: string;
 };

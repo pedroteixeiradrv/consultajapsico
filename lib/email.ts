@@ -1,9 +1,10 @@
 /**
- * E-mail stub (Resend) — notificações opcionais.
+ * E-mail — Resend when RESEND_API_KEY + EMAIL_FROM set; else log only.
  * Fila de psicólogos é ONLINE + aceitar pending, NÃO e-mail-only.
- * Mensalidade: sem subscription active → NÃO registra e-mail de nova solicitação.
+ * Mensalidade: active AND subscription_expires_at > now → blast de nova solicitação.
  */
 import { mutateStore, newId, nowIso } from "@/lib/store";
+import { hasActiveSubscription } from "@/lib/demo";
 
 export type SendEmailInput = {
   to: string;
@@ -12,10 +13,15 @@ export type SendEmailInput = {
   reason?: string;
 };
 
+function resendConfigured(): boolean {
+  return Boolean(
+    process.env.RESEND_API_KEY?.trim() && process.env.EMAIL_FROM?.trim()
+  );
+}
+
 export async function sendEmail(
   input: SendEmailInput
 ): Promise<{ ok: boolean; error?: string }> {
-  console.info("[email stub] sendEmail", input.to, input.subject, input.reason);
   await mutateStore((db) => {
     db.email_log.push({
       id: newId(),
@@ -25,18 +31,59 @@ export async function sendEmail(
       created_at: nowIso(),
     });
   });
-  return { ok: true };
+
+  if (!resendConfigured()) {
+    console.info(
+      "[email] log-only (no RESEND_API_KEY/EMAIL_FROM)",
+      input.to,
+      input.subject,
+      input.reason
+    );
+    return { ok: true };
+  }
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY!.trim()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM!.trim(),
+        to: [input.to],
+        subject: input.subject,
+        html: input.html,
+      }),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error("[email] Resend failed", res.status, text.slice(0, 200));
+      return { ok: false, error: `Resend ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error("[email] Resend error", err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Falha e-mail",
+    };
+  }
 }
 
 /**
- * Avisa só psicólogos com mensalidade active.
+ * Avisa só psicólogos com mensalidade active e não expirada.
  * Online sem mensalidade NÃO recebe e-mail, mas ainda pode Aceitar na fila.
  */
 export async function notifyActivePsychsOfNewRequest(requestId: string) {
   const { readStore } = await import("@/lib/store");
   const db = await readStore();
-  const active = db.psychologists.filter(
-    (p) => p.subscription_status === "active"
+  const active = db.psychologists.filter((p) =>
+    hasActiveSubscription({
+      subscription_status: p.subscription_status,
+      subscription_expires_at: p.subscription_expires_at,
+    })
   );
   for (const p of active) {
     await sendEmail({
@@ -48,7 +95,7 @@ export async function notifyActivePsychsOfNewRequest(requestId: string) {
   }
   if (active.length === 0) {
     console.info(
-      "[email stub] no active-subscription psychs — skipping blast for",
+      "[email] no active+unexpired subscription psychs — skipping blast for",
       requestId
     );
   }
