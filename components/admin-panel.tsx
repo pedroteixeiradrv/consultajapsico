@@ -9,6 +9,8 @@ import {
   releasePayoutAction,
   denyPayoutAction,
   markPayoutBatchPaidAction,
+  saveSubscriptionCouponAction,
+  sendTestEmailAction,
 } from "@/lib/actions/admin";
 
 type PsychRow = {
@@ -63,25 +65,52 @@ type OwedRow = {
   pendingPayoutIds?: string[];
 };
 
+type TxRow = {
+  id: string;
+  created_at: string;
+  paid_at: string;
+  completed_at: string | null;
+  client_name: string;
+  professional_name: string;
+  professional_doc: string | null;
+  price_cents: number;
+  professional_cut_cents: number;
+  platform_cut_cents: number;
+  status: string;
+  payout_release_status: string;
+  attendance_confirmed: boolean;
+  sac_linked: boolean;
+  payout_credited: boolean;
+  payment_mismatch_cents: number | null;
+};
+
 export function AdminPanel({
   psychologists,
   clients,
   reviewQueue,
   ratings,
   owed,
+  transactions,
+  subscriptionCouponCode,
+  adminEmail,
 }: {
   psychologists: PsychRow[];
   clients: ClientRow[];
   reviewQueue: ReviewRow[];
   ratings: RatingRow[];
   owed: OwedRow[];
+  transactions: TxRow[];
+  subscriptionCouponCode: string | null;
+  adminEmail: string;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<
-    "psychs" | "clients" | "review" | "ratings" | "payouts"
+    "psychs" | "clients" | "review" | "ratings" | "payouts" | "transactions" | "settings"
   >("psychs");
   const [error, setError] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [couponDraft, setCouponDraft] = useState(subscriptionCouponCode ?? "");
 
   const tabs = [
     ["psychs", "Profissionais"],
@@ -89,6 +118,8 @@ export function AdminPanel({
     ["review", `Revisão (${reviewQueue.length})`],
     ["ratings", "Avaliações"],
     ["payouts", "Repasses"],
+    ["transactions", `Transações (${transactions.length})`],
+    ["settings", "Config"],
   ] as const;
 
   return (
@@ -113,6 +144,11 @@ export function AdminPanel({
       {error && (
         <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
           {error}
+        </p>
+      )}
+      {okMsg && (
+        <p className="mb-3 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800">
+          {okMsg}
         </p>
       )}
 
@@ -369,6 +405,134 @@ export function AdminPanel({
           </form>
         </Card>
       )}
+
+      {tab === "transactions" && (
+        <Card>
+          <h2 className="mb-3 font-semibold">
+            Transações pagas (para decidir repasses)
+          </h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Todas as consultas com paid_at, mais recentes primeiro.
+          </p>
+          {transactions.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhuma transação paga.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100 text-sm">
+              {transactions.map((tx) => (
+                <li key={tx.id} className="py-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="font-medium">
+                      <code className="rounded bg-slate-100 px-1">
+                        {tx.id.slice(0, 8)}
+                      </code>{" "}
+                      · {tx.client_name} → {tx.professional_name}
+                      {tx.professional_doc
+                        ? ` (${tx.professional_doc})`
+                        : ""}
+                    </p>
+                    <p className="font-semibold text-teal-800">
+                      {formatBRL(tx.price_cents)}
+                    </p>
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    corte prof. {formatBRL(tx.professional_cut_cents)} ·
+                    plataforma {formatBRL(tx.platform_cut_cents)} · status{" "}
+                    {tx.status} · release {tx.payout_release_status}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    criada{" "}
+                    {new Date(tx.created_at).toLocaleString("pt-BR")} · paga{" "}
+                    {new Date(tx.paid_at).toLocaleString("pt-BR")}
+                    {tx.completed_at
+                      ? ` · concluída ${new Date(tx.completed_at).toLocaleString("pt-BR")}`
+                      : ""}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    presença {tx.attendance_confirmed ? "sim" : "não"} · SAC{" "}
+                    {tx.sac_linked ? "sim" : "não"} · payout creditado{" "}
+                    {tx.payout_credited ? "sim" : "não"}
+                    {tx.payment_mismatch_cents != null
+                      ? ` · mismatch ${formatBRL(tx.payment_mismatch_cents)}`
+                      : ""}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
+
+      {tab === "settings" && (
+        <Card>
+          <h2 className="mb-3 font-semibold">Cupom de assinatura (30 dias grátis)</h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Defina uma palavra-chave. Psicólogos podem resgatar no painel (sem LivePix).
+            Deixe vazio e salve para desativar.
+          </p>
+          <div className="mb-4 flex flex-wrap gap-2">
+            <input
+              value={couponDraft}
+              onChange={(e) => setCouponDraft(e.target.value)}
+              placeholder="Ex: BEMVINDO30"
+              className="min-w-[200px] flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              disabled={pending}
+              className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+              onClick={() =>
+                start(async () => {
+                  setError(null);
+                  setOkMsg(null);
+                  const fd = new FormData();
+                  fd.set("couponCode", couponDraft);
+                  const r = await saveSubscriptionCouponAction(fd);
+                  if (!r.ok) setError(r.error);
+                  else {
+                    setOkMsg(
+                      couponDraft.trim()
+                        ? "Cupom salvo."
+                        : "Cupom desativado (vazio)."
+                    );
+                    router.refresh();
+                  }
+                })
+              }
+            >
+              Salvar cupom
+            </button>
+          </div>
+          <p className="mb-4 text-xs text-slate-500">
+            Atual:{" "}
+            {subscriptionCouponCode
+              ? `"${subscriptionCouponCode}"`
+              : "(desativado)"}
+          </p>
+
+          <h2 className="mb-3 font-semibold">E-mail de teste (Resend)</h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Envia para o e-mail da sessão admin ({adminEmail}) com assunto
+            &quot;ConsultaJá teste&quot;.
+          </p>
+          <button
+            type="button"
+            disabled={pending}
+            className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+            onClick={() =>
+              start(async () => {
+                setError(null);
+                setOkMsg(null);
+                const r = await sendTestEmailAction();
+                if (!r.ok) setError(r.error);
+                else setOkMsg(`E-mail de teste enviado para ${adminEmail}.`);
+              })
+            }
+          >
+            Enviar e-mail de teste
+          </button>
+        </Card>
+      )}
+
     </div>
   );
 }

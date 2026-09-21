@@ -7,6 +7,7 @@ import {
   acceptRequestAction,
   toggleOnlineAction,
   startSubscriptionCheckoutAction,
+  redeemSubscriptionCouponAction,
 } from "@/lib/actions/psych";
 
 type QueueItem = {
@@ -33,6 +34,8 @@ export function PsychDashboardClient({
   const router = useRouter();
   const [online, setOnline] = useState(initialOnline);
   const [error, setError] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [couponMsg, setCouponMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   function refresh() {
@@ -120,6 +123,47 @@ export function PsychDashboardClient({
             Assinar 30 dias (alertas por e-mail) — LivePix
           </button>
         )}
+
+        <div className="mt-4 border-t border-slate-100 pt-3">
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Cupom de assinatura
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value)}
+              placeholder="Código do cupom"
+              className="min-w-[160px] flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              disabled={pending || !couponCode.trim()}
+              className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+              onClick={() =>
+                start(async () => {
+                  setError(null);
+                  setCouponMsg(null);
+                  const fd = new FormData();
+                  fd.set("couponCode", couponCode);
+                  const r = await redeemSubscriptionCouponAction(fd);
+                  if (!r.ok) {
+                    setError(r.error);
+                    return;
+                  }
+                  setCouponMsg("Cupom resgatado — 30 dias ativos.");
+                  setCouponCode("");
+                  refresh();
+                })
+              }
+            >
+              Redeem
+            </button>
+          </div>
+          {couponMsg && (
+            <p className="mt-2 text-sm text-teal-700">{couponMsg}</p>
+          )}
+        </div>
+
       </Card>
 
       <Card>
