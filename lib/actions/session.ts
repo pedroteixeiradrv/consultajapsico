@@ -7,8 +7,9 @@ import type { ActionResult } from "@/lib/actions/admin";
 
 export async function markConsultationPaid(
   requestId: string,
-  clientId: string
-): Promise<ActionResult> {
+  clientId: string,
+  opts?: { paidAmountCents?: number | null }
+): Promise<ActionResult & { detail?: string }> {
   const result = await mutateStore((db) => {
     const req = db.consultation_requests.find((r) => r.id === requestId);
     if (!req) return { ok: false as const, error: "Pedido não encontrado" };
@@ -19,8 +20,30 @@ export async function markConsultationPaid(
     if (req.status !== "pending") {
       return { ok: false as const, error: "Status inválido para pagamento" };
     }
+
+    const paidAmt = opts?.paidAmountCents;
+    if (paidAmt != null && paidAmt !== req.price_cents) {
+      const now = nowIso();
+      req.payment_mismatch_cents = paidAmt;
+      req.cancel_reason =
+        `amount_mismatch: paid ${paidAmt} expected ${req.price_cents}`;
+      req.updated_at = now;
+      console.warn(
+        "[payment] amount mismatch; not marking paid",
+        requestId,
+        paidAmt,
+        req.price_cents
+      );
+      return {
+        ok: false as const,
+        error: "amount_mismatch",
+        detail: "amount_mismatch",
+      };
+    }
+
     const now = nowIso();
     req.paid_at = now;
+    req.payment_mismatch_cents = null;
     req.updated_at = now;
 
     db.credits_ledger.push({

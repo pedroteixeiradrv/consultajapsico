@@ -165,3 +165,38 @@ export async function markPayoutBatchPaidAction(
   if (!result.ok) return { ok: false, error: result.error };
   return { ok: true };
 }
+
+/** Save or clear subscription coupon keyword (empty = disabled) */
+export async function saveSubscriptionCouponAction(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireSession("admin");
+  const raw = String(formData.get("couponCode") ?? "").trim();
+  const code = raw.length === 0 ? null : raw;
+  await mutateStore((db) => {
+    db.platform_settings.subscription_coupon_code = code;
+    db.platform_settings.updated_at = nowIso();
+  });
+  return { ok: true };
+}
+
+/** Send a Resend test email to the admin session email */
+export async function sendTestEmailAction(
+  formData?: FormData
+): Promise<ActionResult> {
+  const session = await requireSession("admin");
+  const override = formData
+    ? String(formData.get("email") ?? "").trim().toLowerCase()
+    : "";
+  const to = override || session.email;
+  if (!to) return { ok: false, error: "E-mail de destino ausente." };
+  const { sendEmail } = await import("@/lib/email");
+  const result = await sendEmail({
+    to,
+    subject: "ConsultaJá teste",
+    html: "<p>E-mail de teste do painel admin ConsultaJá. Se você recebeu isto, o Resend está OK.</p>",
+    reason: "admin_test",
+  });
+  if (!result.ok) return { ok: false, error: result.error ?? "Falha ao enviar" };
+  return { ok: true };
+}

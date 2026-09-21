@@ -222,3 +222,40 @@ export async function activateSubscriptionStubAction(): Promise<ActionResult> {
   });
   return { ok: true };
 }
+
+/**
+ * Redeem admin coupon → 30 days free subscription (no LivePix).
+ * Compare case-insensitive trim; empty/null setting = disabled.
+ */
+export async function redeemSubscriptionCouponAction(
+  formData: FormData
+): Promise<ActionResult> {
+  const session = await requireSession("psych");
+  const input = String(formData.get("couponCode") ?? "").trim();
+  if (!input) return { ok: false, error: "Informe o cupom." };
+
+  const result = await mutateStore((db) => {
+    const configured = (db.platform_settings.subscription_coupon_code ?? "")
+      .trim();
+    if (!configured) {
+      return { ok: false as const, error: "Cupom desativado." };
+    }
+    if (configured.toLowerCase() !== input.toLowerCase()) {
+      return { ok: false as const, error: "Cupom inválido." };
+    }
+    const p = db.psychologists.find((x) => x.id === session.sub);
+    if (!p) return { ok: false as const, error: "Psicólogo não encontrado" };
+    p.subscription_status = "active";
+    p.subscription_expires_at = expiresIn30DaysIso();
+    p.updated_at = nowIso();
+    db.email_log.push({
+      id: newId(),
+      to: p.email,
+      subject: "Cupom de assinatura resgatado",
+      reason: "coupon_redeem",
+      created_at: nowIso(),
+    });
+    return { ok: true as const };
+  });
+  return result;
+}
