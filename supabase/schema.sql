@@ -18,6 +18,7 @@ create table if not exists platform_settings (
   price_id_cents integer not null default 5000,          -- cliente identificado: R$50 / 30min
   psych_cut_id_cents integer not null default 4000,      -- corte psicólogo identificado: R$40
   session_duration_minutes integer not null default 30,
+  subscription_coupon_code text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
