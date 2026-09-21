@@ -10,7 +10,8 @@ import {
   CreditsLedgerEntry,
   DEFAULT_PRICES,
   EmailLogEntry,
-  Payout,  PayoutBatch,
+  Payout,
+  PayoutBatch,
   PlatformSettings,
   Psychologist,
   SacTicket,
@@ -34,6 +35,7 @@ function emptySettings(): PlatformSettings {
     price_id_cents: DEFAULT_PRICES.priceIdCents,
     psych_cut_id_cents: DEFAULT_PRICES.psychCutIdCents,
     session_duration_minutes: DEFAULT_PRICES.sessionMinutes,
+    subscription_coupon_code: null,
     created_at: now,
     updated_at: now,
   };
@@ -105,7 +107,8 @@ async function loadDb(client: SupabaseClient): Promise<Database> {
     credits_ledger,
     sac_tickets,
     settingsRows,
-    payouts, payout_batches,
+    payouts,
+    payout_batches,
     emailRows,
   ] = await Promise.all([
     selectAll<Admin>(client, "admins"),
@@ -115,7 +118,8 @@ async function loadDb(client: SupabaseClient): Promise<Database> {
     selectAll<CreditsLedgerEntry>(client, "credits_ledger"),
     selectAll<SacTicket>(client, "sac_tickets"),
     selectAll<PlatformSettings>(client, "platform_settings"),
-    selectAll<Payout>(client, "payouts"),      selectAll<PayoutBatch>(client, "payout_batches"),
+    selectAll<Payout>(client, "payouts"),
+    selectAll<PayoutBatch>(client, "payout_batches"),
     selectAll<EmailLogRow>(client, "email_log"),
   ]);
 
@@ -127,7 +131,8 @@ async function loadDb(client: SupabaseClient): Promise<Database> {
     credits_ledger,
     sac_tickets,
     platform_settings: settingsRows[0] ?? emptySettings(),
-    payouts, payout_batches,
+    payouts,
+    payout_batches: payout_batches ?? [],
     email_log: emailRows.map(emailFromRow),
   };
 }
@@ -159,6 +164,11 @@ async function persistDb(client: SupabaseClient, before: Database, db: Database)
   await upsertRows(client, "payouts", db.payouts as unknown as Record<string, unknown>[]);
   await upsertRows(
     client,
+    "payout_batches",
+    (db.payout_batches ?? []) as unknown as Record<string, unknown>[]
+  );
+  await upsertRows(
+    client,
     "email_log",
     db.email_log.map(emailToRow) as unknown as Record<string, unknown>[]
   );
@@ -174,6 +184,12 @@ async function persistDb(client: SupabaseClient, before: Database, db: Database)
     "email_log",
     before.email_log.map((r) => r.id),
     new Set(db.email_log.map((r) => r.id))
+  );
+  await deleteMissing(
+    client,
+    "payout_batches",
+    (before.payout_batches ?? []).map((r) => r.id),
+    new Set((db.payout_batches ?? []).map((r) => r.id))
   );
   await deleteMissing(
     client,
@@ -251,7 +267,8 @@ export async function mutateStore<T>(
       credits_ledger: [...before.credits_ledger],
       sac_tickets: [...before.sac_tickets],
       platform_settings: { ...before.platform_settings },
-      payouts: [...before.payouts],      payout_batches: [...(before.payout_batches ?? [])],
+      payouts: [...before.payouts],
+      payout_batches: [...(before.payout_batches ?? [])],
       email_log: [...before.email_log],
     };
     const result = mutator(db);
