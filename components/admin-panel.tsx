@@ -10,6 +10,7 @@ import {
   denyPayoutAction,
   markPayoutBatchPaidAction,
   saveSubscriptionCouponAction,
+  savePlatformPricesAction,
   sendTestEmailAction,
 } from "@/lib/actions/admin";
 
@@ -84,6 +85,16 @@ type TxRow = {
   payment_mismatch_cents: number | null;
 };
 
+function centsToReaisInput(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+function parseDraftReais(raw: string): number | null {
+  const n = Number(String(raw).trim().replace(",", "."));
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n * 100);
+}
+
 export function AdminPanel({
   psychologists,
   clients,
@@ -93,6 +104,10 @@ export function AdminPanel({
   transactions,
   subscriptionCouponCode,
   adminEmail,
+  priceIdCents,
+  psychCutIdCents,
+  monthlyFeeCents,
+  sessionMinutes,
 }: {
   psychologists: PsychRow[];
   clients: ClientRow[];
@@ -102,6 +117,10 @@ export function AdminPanel({
   transactions: TxRow[];
   subscriptionCouponCode: string | null;
   adminEmail: string;
+  priceIdCents: number;
+  psychCutIdCents: number;
+  monthlyFeeCents: number;
+  sessionMinutes: number;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<
@@ -111,6 +130,19 @@ export function AdminPanel({
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const [couponDraft, setCouponDraft] = useState(subscriptionCouponCode ?? "");
+  const [priceDraft, setPriceDraft] = useState(centsToReaisInput(priceIdCents));
+  const [psychCutDraft, setPsychCutDraft] = useState(
+    centsToReaisInput(psychCutIdCents)
+  );
+  const [monthlyDraft, setMonthlyDraft] = useState(
+    centsToReaisInput(monthlyFeeCents)
+  );
+  const previewPrice = parseDraftReais(priceDraft);
+  const previewCut = parseDraftReais(psychCutDraft);
+  const previewPlatform =
+    previewPrice != null && previewCut != null
+      ? Math.max(0, previewPrice - previewCut)
+      : null;
 
   const tabs = [
     ["psychs", "Profissionais"],
@@ -464,6 +496,85 @@ export function AdminPanel({
 
       {tab === "settings" && (
         <Card>
+          <h2 className="mb-3 font-semibold">Preços da consulta</h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Valores em reais (R$). Sessão atual: {sessionMinutes} min.
+          </p>
+          <div className="mb-3 grid gap-3 sm:grid-cols-3">
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Cobrado do cliente</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={priceDraft}
+                onChange={(e) => setPriceDraft(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Repasse ao psicólogo</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={psychCutDraft}
+                onChange={(e) => setPsychCutDraft(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-slate-600">Mensalidade</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={monthlyDraft}
+                onChange={(e) => setMonthlyDraft(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+          <ul className="mb-3 list-inside list-disc text-xs text-slate-600">
+            <li>
+              Cobrado:{" "}
+              {previewPrice != null ? formatBRL(previewPrice) : "—"}
+            </li>
+            <li>
+              Repasse profissional:{" "}
+              {previewCut != null ? formatBRL(previewCut) : "—"}
+            </li>
+            <li>
+              Taxa plataforma:{" "}
+              {previewPlatform != null ? formatBRL(previewPlatform) : "—"}
+              {" "}(= cobrado − repasse)
+            </li>
+          </ul>
+          <p className="mb-3 text-xs text-slate-500">
+            Ao salvar, a página principal e novos pedidos usam estes valores.
+            Pedidos já criados mantêm o preço antigo.
+          </p>
+          <button
+            type="button"
+            disabled={pending}
+            className="mb-6 rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+            onClick={() =>
+              start(async () => {
+                setError(null);
+                setOkMsg(null);
+                const fd = new FormData();
+                fd.set("priceReais", priceDraft);
+                fd.set("psychCutReais", psychCutDraft);
+                fd.set("monthlyFeeReais", monthlyDraft);
+                const r = await savePlatformPricesAction(fd);
+                if (!r.ok) setError(r.error);
+                else {
+                  setOkMsg("Preços salvos.");
+                  router.refresh();
+                }
+              })
+            }
+          >
+            Salvar preços
+          </button>
+
           <h2 className="mb-3 font-semibold">Cupom de assinatura (30 dias grátis)</h2>
           <p className="mb-3 text-xs text-slate-500">
             Defina uma palavra-chave. Psicólogos podem resgatar no painel (sem LivePix).
