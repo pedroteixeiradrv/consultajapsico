@@ -200,3 +200,56 @@ export async function sendTestEmailAction(
   if (!result.ok) return { ok: false, error: result.error ?? "Falha ao enviar" };
   return { ok: true };
 }
+
+function parseReaisToCents(raw: string): number | null {
+  const normalized = String(raw ?? "")
+    .trim()
+    .replace(/\s/g, "")
+    .replace(",", ".");
+  if (!normalized) return null;
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n * 100);
+}
+
+/** Admin updates consultation / mensalidade prices (reais → cents) */
+export async function savePlatformPricesAction(
+  formData: FormData
+): Promise<ActionResult> {
+  await requireSession("admin");
+
+  const priceCents = parseReaisToCents(String(formData.get("priceReais") ?? ""));
+  const psychCutCents = parseReaisToCents(
+    String(formData.get("psychCutReais") ?? "")
+  );
+  const monthlyFeeCents = parseReaisToCents(
+    String(formData.get("monthlyFeeReais") ?? "")
+  );
+
+  if (priceCents == null || psychCutCents == null || monthlyFeeCents == null) {
+    return { ok: false, error: "Informe valores numéricos válidos em reais." };
+  }
+  if (priceCents <= 0) {
+    return { ok: false, error: "O preço cobrado deve ser maior que zero." };
+  }
+  if (psychCutCents < 0) {
+    return { ok: false, error: "O repasse não pode ser negativo." };
+  }
+  if (psychCutCents > priceCents) {
+    return {
+      ok: false,
+      error: "O repasse não pode ser maior que o preço cobrado.",
+    };
+  }
+  if (monthlyFeeCents < 0) {
+    return { ok: false, error: "A mensalidade não pode ser negativa." };
+  }
+
+  await mutateStore((db) => {
+    db.platform_settings.price_id_cents = priceCents;
+    db.platform_settings.psych_cut_id_cents = psychCutCents;
+    db.platform_settings.monthly_fee_cents = monthlyFeeCents;
+    db.platform_settings.updated_at = nowIso();
+  });
+  return { ok: true };
+}
