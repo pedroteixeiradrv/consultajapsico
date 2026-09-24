@@ -59,8 +59,20 @@ export async function sendEmail(
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      console.error("[email] Resend failed", res.status, text.slice(0, 200));
-      return { ok: false, error: `Resend ${res.status}` };
+      console.error("[email] Resend failed", res.status, text.slice(0, 400));
+      let detail = "";
+      try {
+        const j = JSON.parse(text) as { message?: string; name?: string };
+        detail = j.message || j.name || "";
+      } catch {
+        detail = text.slice(0, 160);
+      }
+      return {
+        ok: false,
+        error: detail
+          ? `Resend ${res.status}: ${detail}`
+          : `Resend ${res.status}`,
+      };
     }
     return { ok: true };
   } catch (err) {
