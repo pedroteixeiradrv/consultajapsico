@@ -126,7 +126,7 @@ export default async function AdminDashboardPage() {
               Mensalidade: {formatBRL(db.platform_settings.monthly_fee_cents)}
             </li>
             <li>
-              Preço: {formatBRL(db.platform_settings.price_id_cents)} / 30 min
+              Preço: {formatBRL(db.platform_settings.price_id_cents)} /{" "}{db.platform_settings.session_duration_minutes} min
             </li>
             <li>
               Corte psicólogo:{" "}
@@ -197,6 +197,10 @@ export default async function AdminDashboardPage() {
         transactions={transactions}
         subscriptionCouponCode={db.platform_settings.subscription_coupon_code}
         adminEmail={session.email}
+        priceIdCents={db.platform_settings.price_id_cents}
+        psychCutIdCents={db.platform_settings.psych_cut_id_cents}
+        monthlyFeeCents={db.platform_settings.monthly_fee_cents}
+        sessionMinutes={db.platform_settings.session_duration_minutes}
       />
     </Shell>
   );
