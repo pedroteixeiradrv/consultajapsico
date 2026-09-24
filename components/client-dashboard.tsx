@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Card, formatBRL, StubNote } from "@/components/ui";
+import { DEFAULT_PRICES } from "@/lib/types";
 import {
   createConsultationAction,
   confirmStubPaymentAction,
@@ -44,7 +45,7 @@ export function ClientDashboardClient({
             <code className="rounded bg-slate-100 px-1">
               {payRequestId.slice(0, 8)}
             </code>{" "}
-            · {formatBRL(payAmountCents ?? 5000)}. Confirme para simular o
+            · {formatBRL(payAmountCents ?? DEFAULT_PRICES.priceIdCents)}. Confirme para simular o
             webhook.
           </p>
           <button
